@@ -1,0 +1,16 @@
+llm:
+  provider: "openai"           # "openai" | "gemini" | "ollama"
+  model: "gpt-4o-mini"         # Model name (e.g., gpt-4o-mini, gemini-2.0-flash, llama3.2)
+  api_key: ""                  # API key for openai/gemini (ignored for ollama)
+  ollama_base_url: "http://localhost:11434"
+  temperature: 0.7
+
+matching:
+  max_results_per_tag: 5       # Candidates per LLM-generated tag
+  vector_search_k: 10          # FAISS nearest neighbors per query
+  min_similarity_score: 0.3    # Minimum cosine similarity threshold
+  count_weight: 0.1            # Tag popularity weight in ranking (0.0-1.0)
+
+server:
+  host: "127.0.0.1"
+  port: 8000

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SD Prompt Tag Generator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+    <!-- Settings Overlay -->
+    <div id="settings-overlay" class="settings-overlay"></div>
+
+    <!-- Settings Sidebar -->
+    <aside id="settings-panel" class="settings-panel">
+        <div class="settings-header">
+            <h2>Settings</h2>
+            <button id="settings-close" class="btn-icon" title="Close">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div class="settings-body">
+            <div class="form-group">
+                <label for="provider-select">Provider</label>
+                <select id="provider-select">
+                    <option value="openai">OpenAI</option>
+                    <option value="gemini">Google Gemini</option>
+                    <option value="ollama">Ollama (Local)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="model-select">Model</label>
+                <select id="model-select">
+                    <!-- Populated dynamically by app.js -->
+                </select>
+                <span class="hint" id="model-hint"></span>
+            </div>
+            <div class="form-group" id="api-key-group">
+                <label for="api-key-input">API Key</label>
+                <input type="password" id="api-key-input" placeholder="Enter your API key...">
+            </div>
+            <div class="form-group hidden" id="ollama-url-group">
+                <label for="ollama-url-input">Ollama URL</label>
+                <input type="text" id="ollama-url-input" value="http://localhost:11434">
+            </div>
+            <div class="form-group">
+                <label>Temperature</label>
+                <div class="temperature-control">
+                    <input type="range" id="temperature-range" min="0" max="2" step="0.1" value="0.7">
+                    <span class="temp-value" id="temp-display">0.7</span>
+                </div>
+                <span class="hint">Lower = more focused, Higher = more creative</span>
+            </div>
+        </div>
+        <div class="settings-footer">
+            <button id="save-config-btn" class="btn btn-primary">Save Settings</button>
+            <div id="config-status" class="config-status"></div>
+        </div>
+    </aside>
+
+    <!-- Main App -->
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <div class="logo">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                </div>
+                <h1>SD Prompt Tag Generator</h1>
+            </div>
+            <button id="settings-toggle" class="btn-icon" title="Settings">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+                    <circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                </svg>
+            </button>
+        </header>
+
+        <!-- Mode Tabs -->
+        <div class="tabs">
+            <button class="tab active" data-mode="generate">Generate</button>
+            <button class="tab" data-mode="random">Random Expand</button>
+            <button class="tab" data-mode="scene">Scene Expand</button>
+        </div>
+
+        <!-- === Generate Mode === -->
+        <div id="mode-generate" class="mode-panel">
+            <section class="card">
+                <label class="input-label" for="description-input">Describe your image</label>
+                <textarea id="description-input" rows="4" placeholder="예: 파란 눈의 금발 소녀가 벚꽃 나무 아래에서 교복을 입고 앉아 있는 모습, 부드러운 미소를 짓고 있다"></textarea>
+                <div class="options-row">
+                    <div class="tag-count-control">
+                        <span>Tags:</span>
+                        <button class="count-btn" id="tags-minus">-</button>
+                        <span class="count-value" id="tags-count">20</span>
+                        <button class="count-btn" id="tags-plus">+</button>
+                    </div>
+                    <div class="toggle-group">
+                        <label class="toggle-item">
+                            <input type="checkbox" id="detailed-check">
+                            <span>Detailed</span>
+                        </label>
+                        <label class="toggle-item">
+                            <input type="checkbox" id="anima-check">
+                            <span>Anime</span>
+                        </label>
+                    </div>
+                </div>
+                <button id="generate-btn" class="generate-btn">
+                    <span class="btn-content">
+                        <span class="btn-text">Generate Tags</span>
+                        <span class="spinner hidden"></span>
+                    </span>
+                </button>
+            </section>
+        </div>
+
+        <!-- === Random Expand Mode === -->
+        <div id="mode-random" class="mode-panel hidden">
+            <section class="card">
+                <label class="input-label" for="random-base-input">Base Tags (comma-separated)</label>
+                <textarea id="random-base-input" rows="2" placeholder="예: 1girl, blue_hair, school_uniform" style="min-height: 60px;"></textarea>
+                <div class="options-row">
+                    <div class="toggle-group">
+                        <label class="toggle-item">
+                            <input type="checkbox" id="random-anima-check">
+                            <span>Anime</span>
+                        </label>
+                    </div>
+                    <div class="nsfw-options">
+                        <button class="nsfw-btn" data-level="spicy">Spicy</button>
+                        <button class="nsfw-btn boost" data-level="boost">Boost</button>
+                        <button class="nsfw-btn explicit" data-level="explicit">Explicit</button>
+                    </div>
+                </div>
+                <button id="random-generate-btn" class="generate-btn">
+                    <span class="btn-content">
+                        <span class="btn-text">Expand Tags</span>
+                        <span class="spinner hidden"></span>
+                    </span>
+                </button>
+            </section>
+        </div>
+
+        <!-- === Scene Expand Mode === -->
+        <div id="mode-scene" class="mode-panel hidden">
+            <section class="card">
+                <label class="input-label" for="scene-base-input">Base Tags (comma-separated)</label>
+                <textarea id="scene-base-input" rows="2" placeholder="예: 1girl, blue_hair, school_uniform" style="min-height: 60px;"></textarea>
+                <label class="input-label" for="scene-desc-input" style="margin-top: 12px;">Scene Description</label>
+                <textarea id="scene-desc-input" rows="3" placeholder="예: 교실 창가에 앉아 석양을 바라보며, 따뜻한 빛이 얼굴을 비추는 장면" style="min-height: 80px;"></textarea>
+                <div class="options-row">
+                    <div class="toggle-group">
+                        <label class="toggle-item">
+                            <input type="checkbox" id="scene-anima-check">
+                            <span>Anime</span>
+                        </label>
+                    </div>
+                </div>
+                <button id="scene-generate-btn" class="generate-btn">
+                    <span class="btn-content">
+                        <span class="btn-text">Expand with Scene</span>
+                        <span class="spinner hidden"></span>
+                    </span>
+                </button>
+            </section>
+        </div>
+
+        <!-- Status Messages -->
+        <div id="status-bar" class="status-bar hidden">
+            <span id="status-message"></span>
+        </div>
+
+        <!-- Streaming Log -->
+        <div id="log-section" class="log-section hidden">
+            <button id="log-toggle" class="log-toggle">
+                <span class="log-title">
+                    <span class="dot" id="log-dot"></span>
+                    <span>Generation Log</span>
+                    <span id="log-count" style="font-size: 0.7rem; color: var(--text-muted);"></span>
+                </span>
+                <span class="chevron">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>
+                </span>
+            </button>
+            <div id="log-container" class="log-container">
+                <div id="log-entries" class="log-entries"></div>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <section id="results-section" class="results-section hidden">
+            <!-- Raw LLM Tags -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">
+                        LLM Generated Tags
+                        <span class="count-badge" id="raw-tag-count">0</span>
+                    </h3>
+                </div>
+                <div id="raw-tags" class="raw-tags"></div>
+            </div>
+
+            <!-- Matched Tags -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Validated Danbooru Tags</h3>
+                    <div style="display: flex; gap: 6px;">
+                        <button id="select-all-btn" class="btn btn-sm">Select All</button>
+                        <button id="deselect-all-btn" class="btn btn-sm">Deselect All</button>
+                    </div>
+                </div>
+                <div id="matched-tags" class="tag-grid"></div>
+            </div>
+
+            <!-- Custom Tag Input -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Add Custom Tag</h3>
+                </div>
+                <div class="custom-tag-section">
+                    <div class="autocomplete-wrapper">
+                        <input type="text" id="custom-tag-input" placeholder="Type to search tags..." autocomplete="off">
+                        <div id="autocomplete-dropdown" class="autocomplete-dropdown hidden"></div>
+                    </div>
+                    <button id="add-custom-btn" class="btn btn-sm">Add</button>
+                </div>
+            </div>
+
+            <!-- Final Prompt -->
+            <div class="card prompt-card">
+                <div class="card-header">
+                    <h3 class="card-title">Final Prompt</h3>
+                    <button id="copy-btn" class="btn btn-primary btn-sm">
+                        <span class="copy-text">Copy</span>
+                        <span class="copied-text hidden">Copied!</span>
+                    </button>
+                </div>
+                <div id="final-prompt" class="final-prompt"></div>
+            </div>
+        </section>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <span id="health-indicator" class="health-dot"></span>
+            <span id="health-text">Connecting...</span>
+        </footer>
+    </div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/tag-editor.js"></script>
+    <script src="/js/app.js"></script>
+</body>
+</html>
