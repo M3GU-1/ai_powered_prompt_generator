@@ -15,7 +15,36 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM Install dependencies
+REM ── Step 1: Auto-extract tag index archives ────────────────────
+set "ARCHIVES_FOUND=0"
+for %%F in (tag-index-*.tar.gz) do (
+    if exist "%%F" (
+        set "ARCHIVES_FOUND=1"
+        echo [*] Found tag index archive: %%F
+        echo     Extracting to data\ ...
+        if not exist "data" mkdir data
+        tar -xzf "%%F" -C data\
+        if not errorlevel 1 (
+            echo     Done. Removing archive.
+            del /q "%%F"
+        ) else (
+            echo     [WARN] Extraction failed for %%F
+        )
+    )
+)
+
+if "%ARCHIVES_FOUND%"=="1" echo.
+
+REM ── Step 2: Auto-create config.yaml ────────────────────────────
+if not exist "config.yaml" (
+    if exist "config.example.yaml" (
+        copy /y config.example.yaml config.yaml >nul
+        echo [*] Created config.yaml from config.example.yaml
+        echo.
+    )
+)
+
+REM ── Step 3: Install dependencies ───────────────────────────────
 echo [1/3] Checking dependencies...
 pip install -r requirements.txt --quiet 2>nul
 if errorlevel 1 (
@@ -23,7 +52,7 @@ if errorlevel 1 (
     echo        Try running: pip install -r requirements.txt
 )
 
-REM Check if any FAISS index exists (new per-source or legacy path)
+REM ── Step 4: Check / build FAISS index ──────────────────────────
 set "INDEX_FOUND=0"
 if exist "data\merged\faiss_index\index.faiss" set "INDEX_FOUND=1"
 if exist "data\danbooru\faiss_index\index.faiss" set "INDEX_FOUND=1"
@@ -45,6 +74,7 @@ if "%INDEX_FOUND%"=="1" (
     )
 )
 
+REM ── Step 5: Start server ───────────────────────────────────────
 echo.
 echo [3/3] Starting server...
 echo.

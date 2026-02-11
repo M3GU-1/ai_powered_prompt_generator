@@ -36,6 +36,9 @@ venv/
 data/merged_tags.json
 data/faiss_index/
 
+# Tag index archives (dropped in by user for auto-extraction)
+tag-index-*.tar.gz
+
 # User config (contains API keys)
 config.yaml
 
