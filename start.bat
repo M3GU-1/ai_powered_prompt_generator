@@ -1,5 +1,4 @@
 @echo off
-chcp 65001 >nul 2>&1
 title SD Prompt Tag Generator
 
 echo ============================================================
@@ -7,18 +6,17 @@ echo   SD Prompt Tag Generator - Startup
 echo ============================================================
 echo.
 
-REM ── Python 검증 ──────────────────────────────────────────────
-REM Windows 10/11의 Microsoft Store 앱 별칭(WindowsApps)을 제외하고 검사
+REM ── Detect Python (skip Windows Store alias) ─────────────────
 set "PYTHON_CMD="
 
-REM 1) py launcher 확인 (가장 신뢰성 높음)
+REM 1) Try py launcher (most reliable on Windows)
 py --version >nul 2>&1
 if not errorlevel 1 (
     set "PYTHON_CMD=py"
     goto :python_found
 )
 
-REM 2) python 명령 확인 (Store 별칭 제외)
+REM 2) Try python command (exclude WindowsApps Store alias)
 for /f "delims=" %%P in ('where python 2^>nul') do (
     echo %%P | findstr /i "WindowsApps" >nul
     if errorlevel 1 (
@@ -27,21 +25,22 @@ for /f "delims=" %%P in ('where python 2^>nul') do (
     )
 )
 
-REM Python을 찾지 못함
+REM Python not found
 echo.
 echo ============================================================
-echo   [ERROR] Python을 찾을 수 없습니다!
+echo   [ERROR] Python is not installed!
 echo ============================================================
 echo.
-echo   다음 중 하나를 설치해주세요:
+echo   Please install Python:
 echo.
-echo   1. Python 공식 사이트: https://www.python.org/downloads/
-echo      (설치 시 "Add Python to PATH" 반드시 체크!)
+echo   1. Download from https://www.python.org/downloads/
+echo      IMPORTANT: Check "Add Python to PATH" during install!
 echo.
-echo   2. 이미 설치했다면 PATH 환경변수에 Python 경로를 추가해주세요.
+echo   2. If already installed, make sure Python is in your PATH.
 echo.
-echo   3. Windows 설정 ^> 앱 ^> 앱 실행 별칭 에서
-echo      "python.exe (앱 설치 관리자)" 를 끄세요.
+echo   3. On Windows 10/11, go to:
+echo      Settings ^> Apps ^> App execution aliases
+echo      and turn OFF "python.exe (App Installer)"
 echo.
 echo ============================================================
 echo.
@@ -49,7 +48,7 @@ pause
 exit /b 1
 
 :python_found
-REM Python 버전 표시
+REM Show detected Python version
 for /f "delims=" %%V in ('%PYTHON_CMD% --version 2^>^&1') do echo [OK] %%V detected
 
 REM ── Step 1: Auto-extract tag index archives ────────────────────
@@ -129,12 +128,12 @@ start "" http://127.0.0.1:8000
 REM Start server
 %PYTHON_CMD% -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
 
-REM ── 서버 종료 후 ─────────────────────────────────────────────
+REM ── After server stops ─────────────────────────────────────────
 echo.
 if errorlevel 1 (
     echo ============================================================
     echo   [ERROR] Server stopped with an error.
-    echo   위 로그를 확인하세요.
+    echo   Check the log messages above.
     echo ============================================================
 ) else (
     echo   Server stopped.
