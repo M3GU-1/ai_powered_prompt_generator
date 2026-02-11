@@ -18,43 +18,41 @@ echo   SD Prompt Tag Generator - Startup
 echo ============================================================
 echo.
 
-REM -- Detect Python (skip Windows Store alias) --
+REM -- Detect Python --
 set "PYTHON_CMD="
 
 py --version >nul 2>&1
 if not errorlevel 1 (
     set "PYTHON_CMD=py"
+    goto :python_ok
 )
 
-if not defined PYTHON_CMD (
-    python --version >nul 2>&1
-    if not errorlevel 1 (
-        where python 2>nul | findstr /i "WindowsApps" >nul
-        if errorlevel 1 set "PYTHON_CMD=python"
-    )
+python --version >nul 2>&1
+if not errorlevel 1 (
+    set "PYTHON_CMD=python"
+    goto :python_ok
 )
 
-if not defined PYTHON_CMD (
-    echo.
-    echo ============================================================
-    echo   [ERROR] Python is not installed!
-    echo ============================================================
-    echo.
-    echo   Please install Python:
-    echo.
-    echo   1. Download from https://www.python.org/downloads/
-    echo      IMPORTANT: Check "Add Python to PATH" during install!
-    echo.
-    echo   2. If already installed, make sure Python is in your PATH.
-    echo.
-    echo   3. On Windows 10/11, go to:
-    echo      Settings ^> Apps ^> App execution aliases
-    echo      and turn OFF "python.exe (App Installer)"
-    echo.
-    echo ============================================================
-    exit /b 1
-)
+echo.
+echo ============================================================
+echo   [ERROR] Python is not installed!
+echo ============================================================
+echo.
+echo   Please install Python:
+echo.
+echo   1. Download from https://www.python.org/downloads/
+echo      IMPORTANT: Check "Add Python to PATH" during install!
+echo.
+echo   2. If already installed, make sure Python is in your PATH.
+echo.
+echo   3. On Windows 10/11, go to:
+echo      Settings ^> Apps ^> App execution aliases
+echo      and turn OFF "python.exe (App Installer)"
+echo.
+echo ============================================================
+exit /b 1
 
+:python_ok
 for /f "delims=" %%V in ('%PYTHON_CMD% --version 2^>^&1') do echo [OK] %%V detected
 echo.
 
