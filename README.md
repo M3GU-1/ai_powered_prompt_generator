@@ -36,8 +36,23 @@
 
 ### 1단계: 다운로드
 
+#### 방법 A — Release 다운로드 (권장)
+
+[Releases 페이지](https://github.com/M3GU-1/ai_powered_prompt_generator/releases/latest)에서 최신 버전을 다운로드합니다:
+
+- **Windows**: `.zip` 파일 다운로드 → 압축 해제
+- **Mac / Linux**: `.tar.gz` 파일 다운로드 → 압축 해제
+
 ```bash
-git clone https://github.com/your-repo/ai_powered_prompt_generator.git
+# Mac/Linux 터미널에서:
+tar -xzf sd-prompt-tag-generator-v*.tar.gz
+cd sd-prompt-tag-generator-v*
+```
+
+#### 방법 B — Git Clone
+
+```bash
+git clone https://github.com/M3GU-1/ai_powered_prompt_generator.git
 cd ai_powered_prompt_generator
 ```
 
@@ -193,7 +208,10 @@ ai_powered_prompt_generator/
 │       ├── tag-editor.js    # 태그 칩 UI 컴포넌트
 │       └── app.js           # 메인 앱 컨트롤러
 ├── scripts/
-│   └── build_embeddings.py  # CSV → FAISS 인덱스 빌드 스크립트
+│   ├── build_embeddings.py  # CSV → FAISS 인덱스 빌드 스크립트
+│   └── package.sh           # 배포용 아카이브 생성
+├── .github/workflows/
+│   └── release.yml          # 자동 릴리즈 (태그 푸시 시)
 ├── data/                     # (자동 생성) 태그 DB + 벡터 인덱스
 ├── danbooru_tags.csv         # Danbooru 태그 데이터 (32K)
 ├── anima_danbooru.csv        # Anima Danbooru 태그 데이터 (183K)
@@ -260,3 +278,26 @@ ai_powered_prompt_generator/
 | `GET` | `/api/config` | 현재 설정 조회 |
 | `PUT` | `/api/config` | 설정 변경 (런타임) |
 | `GET` | `/api/health` | 서버 상태 확인 |
+
+---
+
+## 릴리즈 배포 (개발자용)
+
+### 자동 릴리즈 (GitHub Actions)
+
+태그를 푸시하면 GitHub Actions가 자동으로 Release를 생성하고 zip/tar.gz를 첨부합니다:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+### 수동 패키징
+
+로컬에서 배포용 아카이브를 직접 생성할 수 있습니다:
+
+```bash
+./scripts/package.sh v1.0.0
+# → dist/sd-prompt-tag-generator-v1.0.0.zip
+# → dist/sd-prompt-tag-generator-v1.0.0.tar.gz
+```

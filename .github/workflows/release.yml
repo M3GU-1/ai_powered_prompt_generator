@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+
+      - name: Create release package
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        run: |
+          PKG_NAME="sd-prompt-tag-generator-${VERSION}"
+
+          mkdir -p "${PKG_NAME}"
+
+          # Copy project files
+          cp -r backend/ "${PKG_NAME}/backend/"
+          cp -r frontend/ "${PKG_NAME}/frontend/"
+          cp -r scripts/ "${PKG_NAME}/scripts/"
+          cp danbooru_tags.csv "${PKG_NAME}/"
+          cp anima_danbooru.csv "${PKG_NAME}/"
+          cp config.example.yaml "${PKG_NAME}/"
+          cp requirements.txt "${PKG_NAME}/"
+          cp start.sh "${PKG_NAME}/"
+          cp start.bat "${PKG_NAME}/"
+          cp README.md "${PKG_NAME}/"
+
+          # Ensure start.sh is executable
+          chmod +x "${PKG_NAME}/start.sh"
+
+          # Create zip and tar.gz
+          zip -r "${PKG_NAME}.zip" "${PKG_NAME}/"
+          tar -czf "${PKG_NAME}.tar.gz" "${PKG_NAME}/"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          VERSION: ${{ steps.version.outputs.VERSION }}
+        with:
+          name: "SD Prompt Tag Generator ${{ steps.version.outputs.VERSION }}"
+          body: |
+            ## 다운로드 및 실행 방법
+
+            1. 아래에서 `.zip` (Windows) 또는 `.tar.gz` (Mac/Linux) 파일을 다운로드합니다
+            2. 압축을 풀고 폴더로 이동합니다
+            3. `config.example.yaml`을 `config.yaml`로 복사하고 API 키를 입력합니다
+            4. 실행합니다:
+               - **Windows**: `start.bat` 더블클릭
+               - **Mac/Linux**: 터미널에서 `./start.sh` 실행
+
+            > 첫 실행 시 Python 패키지 설치 및 태그 임베딩 빌드가 자동으로 진행됩니다 (10~20분).
+
+            ### 사전 요구사항
+            - Python 3.10 이상
+            - OpenAI / Google Gemini API 키 (또는 Ollama)
+          files: |
+            sd-prompt-tag-generator-*.zip
+            sd-prompt-tag-generator-*.tar.gz
+          draft: false
+          prerelease: false
