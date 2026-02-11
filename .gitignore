@@ -35,6 +35,7 @@ venv/
 # Generated data
 data/merged_tags.json
 data/faiss_index/
+data/usage/
 
 # Tag index archives (dropped in by user for auto-extraction)
 tag-index-*.tar.gz
@@ -42,11 +43,18 @@ tag-index-*.tar.gz
 # User config (contains API keys)
 config.yaml
 
-# Claude Code local settings
-.claude/settings.local.json
+# Claude Code
+CLAUDE.md
+.claude/
+
+# Serena MCP
+.serena/
 
 # Playwright MCP artifacts
 .playwright-mcp/
+
+# Documentation (not needed for runtime)
+docs/
 
 # Screenshots (test artifacts)
 *.png
