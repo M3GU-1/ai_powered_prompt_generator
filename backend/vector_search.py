@@ -8,12 +8,21 @@ from langchain_huggingface import HuggingFaceEmbeddings
 
 
 class VectorSearch:
+    _shared_embeddings: Optional[HuggingFaceEmbeddings] = None
+
+    @classmethod
+    def _get_embeddings(cls) -> HuggingFaceEmbeddings:
+        """Get or create shared embedding model (avoids ~10s reload on hot-swap)."""
+        if cls._shared_embeddings is None:
+            cls._shared_embeddings = HuggingFaceEmbeddings(
+                model_name="all-MiniLM-L6-v2",
+                model_kwargs={"device": "cpu"},
+            )
+        return cls._shared_embeddings
+
     def __init__(self, index_path: str = "data/faiss_index"):
         self.index_path = index_path
-        self.embeddings = HuggingFaceEmbeddings(
-            model_name="all-MiniLM-L6-v2",
-            model_kwargs={"device": "cpu"},
-        )
+        self.embeddings = self._get_embeddings()
         self.vector_store: Optional[FAISS] = None
         self._load_index()
 
@@ -29,6 +38,12 @@ class VectorSearch:
             self.embeddings,
             allow_dangerous_deserialization=True,
         )
+
+    def reload(self, index_path: str):
+        """Reload with a different FAISS index. Reuses embedding model."""
+        self.index_path = index_path
+        self.vector_store = None
+        self._load_index()
 
     @property
     def is_loaded(self) -> bool:

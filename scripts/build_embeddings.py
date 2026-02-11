@@ -1,23 +1,33 @@
 """
-One-time script: Merge danbooru CSVs, compute embeddings, and build FAISS index.
+One-time script: Build FAISS indexes for each tag source.
 
 Usage:
-    python scripts/build_embeddings.py
+    python scripts/build_embeddings.py              # Build all 3 sources
+    python scripts/build_embeddings.py --source danbooru   # Build danbooru only
+    python scripts/build_embeddings.py --source anima      # Build anima only
+    python scripts/build_embeddings.py --source merged     # Build merged only
 
 This will create:
-    - data/merged_tags.json   (merged tag database)
-    - data/faiss_index/       (FAISS vector index)
+    - data/danbooru/tags.json + faiss_index/
+    - data/anima/tags.json + faiss_index/
+    - data/merged/tags.json + faiss_index/
+    - data/merged_tags.json (legacy compatibility)
+    - data/faiss_index/ (legacy compatibility)
 """
 
+import argparse
 import csv
 import json
 import os
+import shutil
 import sys
 import time
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
+
+VALID_SOURCES = ("danbooru", "anima", "merged", "all")
 
 
 def load_csv(filepath: str) -> list[dict]:
@@ -72,10 +82,10 @@ def merge_tags(danbooru_tags: list[dict], anima_tags: list[dict]) -> list[dict]:
     return merged
 
 
-def select_tags_for_embedding(merged: list[dict]) -> list[dict]:
+def select_tags_for_embedding(tags: list[dict]) -> list[dict]:
     """Select which tags to embed in FAISS index."""
     selected = []
-    for t in merged:
+    for t in tags:
         cat = t["category"]
         # General tags (cat 0): all
         if cat == 0:
@@ -107,10 +117,17 @@ def build_embedding_text(tag: dict) -> str:
     return name
 
 
-def build_faiss_index(tags_to_embed: list[dict]):
-    """Compute embeddings and build FAISS index."""
+def save_tags_json(tags: list[dict], path: Path):
+    """Save tag list as JSON file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(tags, f, ensure_ascii=False)
+    print(f"  Saved {len(tags)} tags to {path}")
+
+
+def load_embedding_model():
+    """Load embedding model once for reuse across builds."""
     try:
-        from langchain_community.vectorstores import FAISS
         from langchain_huggingface import HuggingFaceEmbeddings
     except ImportError:
         print("Error: Required packages not installed. Run:")
@@ -119,10 +136,15 @@ def build_faiss_index(tags_to_embed: list[dict]):
 
     print(f"\nLoading embedding model (all-MiniLM-L6-v2)...")
     print("(First run will download ~80MB model)")
-    embeddings_model = HuggingFaceEmbeddings(
+    return HuggingFaceEmbeddings(
         model_name="all-MiniLM-L6-v2",
         model_kwargs={"device": "cpu"},
     )
+
+
+def build_faiss_index(tags_to_embed: list[dict], index_path: str, embeddings_model):
+    """Compute embeddings and build FAISS index at the given path."""
+    from langchain_community.vectorstores import FAISS
 
     texts = []
     metadatas = []
@@ -135,8 +157,7 @@ def build_faiss_index(tags_to_embed: list[dict]):
         })
 
     total = len(texts)
-    print(f"\nComputing embeddings for {total} tags...")
-    print("This may take 10-20 minutes on CPU.\n")
+    print(f"  Computing embeddings for {total} tags...")
 
     # Process in batches for progress reporting
     BATCH_SIZE = 500
@@ -152,10 +173,9 @@ def build_faiss_index(tags_to_embed: list[dict]):
         elapsed = time.time() - start_time
         rate = done / elapsed if elapsed > 0 else 0
         eta = (total - done) / rate if rate > 0 else 0
-        print(f"  [{done:>6}/{total}] {done/total*100:.1f}%  |  {rate:.0f} tags/s  |  ETA: {eta:.0f}s")
+        print(f"    [{done:>6}/{total}] {done/total*100:.1f}%  |  {rate:.0f} tags/s  |  ETA: {eta:.0f}s")
 
-    print(f"\nBuilding FAISS index...")
-    # Build FAISS from precomputed embeddings
+    print(f"  Building FAISS index...")
     text_embedding_pairs = list(zip(texts, all_embeddings))
     vector_store = FAISS.from_embeddings(
         text_embedding_pairs,
@@ -163,14 +183,50 @@ def build_faiss_index(tags_to_embed: list[dict]):
         metadatas=metadatas,
     )
 
-    index_path = str(DATA_DIR / "faiss_index")
+    os.makedirs(index_path, exist_ok=True)
     vector_store.save_local(index_path)
-    print(f"FAISS index saved to {index_path}/")
+    print(f"  FAISS index saved to {index_path}/")
 
     return vector_store
 
 
+def build_source_set(tags: list[dict], output_dir: Path, label: str, embeddings_model):
+    """Build tags.json and FAISS index for a single source."""
+    print(f"\n{'─' * 50}")
+    print(f"  Building: {label}")
+    print(f"{'─' * 50}")
+
+    # Save tags.json
+    save_tags_json(tags, output_dir / "tags.json")
+
+    # Select and embed
+    tags_to_embed = select_tags_for_embedding(tags)
+    cats = {}
+    for t in tags_to_embed:
+        cats[t["category"]] = cats.get(t["category"], 0) + 1
+
+    cat_names = {0: "general", 1: "artist", 3: "copyright", 4: "character", 5: "meta"}
+    print(f"  Tags for embedding: {len(tags_to_embed)}")
+    for cat, count in sorted(cats.items()):
+        print(f"    Category {cat} ({cat_names.get(cat, 'unknown')}): {count}")
+
+    # Build FAISS index
+    index_path = str(output_dir / "faiss_index")
+    build_faiss_index(tags_to_embed, index_path, embeddings_model)
+
+    return len(tags), len(tags_to_embed)
+
+
 def main():
+    parser = argparse.ArgumentParser(description="Build FAISS indexes for SD Prompt Tag Generator")
+    parser.add_argument(
+        "--source",
+        choices=VALID_SOURCES,
+        default="all",
+        help="Which source to build (default: all)",
+    )
+    args = parser.parse_args()
+
     print("=" * 60)
     print("  SD Prompt Tag Generator - Embedding Builder")
     print("=" * 60)
@@ -192,36 +248,62 @@ def main():
     anima_tags = load_csv(str(anima_path))
     print(f"  Loaded {len(anima_tags)} tags")
 
-    # Merge
-    print(f"\nMerging tags...")
-    merged = merge_tags(danbooru_tags, anima_tags)
-    print(f"  Total unique tags: {len(merged)}")
+    # Load embedding model once
+    embeddings_model = load_embedding_model()
 
-    # Save merged database
     DATA_DIR.mkdir(exist_ok=True)
-    merged_path = DATA_DIR / "merged_tags.json"
-    with open(merged_path, "w", encoding="utf-8") as f:
-        json.dump(merged, f, ensure_ascii=False)
-    print(f"  Saved to {merged_path}")
+    build_targets = args.source
+    results = {}
+    start_total = time.time()
 
-    # Select tags for embedding
-    tags_to_embed = select_tags_for_embedding(merged)
-    cats = {}
-    for t in tags_to_embed:
-        cats[t["category"]] = cats.get(t["category"], 0) + 1
-    print(f"\nTags selected for embedding: {len(tags_to_embed)}")
-    cat_names = {0: "general", 1: "artist", 3: "copyright", 4: "character", 5: "meta"}
-    for cat, count in sorted(cats.items()):
-        print(f"  Category {cat} ({cat_names.get(cat, 'unknown')}): {count}")
+    # Build danbooru-only
+    if build_targets in ("danbooru", "all"):
+        # Add source field for standalone danbooru tags
+        danbooru_with_source = []
+        for t in danbooru_tags:
+            danbooru_with_source.append({**t, "source": "danbooru_only"})
+        danbooru_sorted = sorted(danbooru_with_source, key=lambda x: x["count"], reverse=True)
+        tag_count, vec_count = build_source_set(
+            danbooru_sorted, DATA_DIR / "danbooru", "Danbooru Only", embeddings_model,
+        )
+        results["danbooru"] = (tag_count, vec_count)
 
-    # Build FAISS index
-    build_faiss_index(tags_to_embed)
+    # Build anima-only
+    if build_targets in ("anima", "all"):
+        anima_with_source = []
+        for t in anima_tags:
+            anima_with_source.append({**t, "source": "anima"})
+        anima_sorted = sorted(anima_with_source, key=lambda x: x["count"], reverse=True)
+        tag_count, vec_count = build_source_set(
+            anima_sorted, DATA_DIR / "anima", "Anima Only", embeddings_model,
+        )
+        results["anima"] = (tag_count, vec_count)
 
-    elapsed_total = time.time()
+    # Build merged
+    if build_targets in ("merged", "all"):
+        print(f"\nMerging tags...")
+        merged = merge_tags(danbooru_tags, anima_tags)
+        print(f"  Total unique tags: {len(merged)}")
+
+        tag_count, vec_count = build_source_set(
+            merged, DATA_DIR / "merged", "Merged (Both)", embeddings_model,
+        )
+        results["merged"] = (tag_count, vec_count)
+
+        # Legacy compatibility: copy merged outputs to old paths
+        legacy_tags = DATA_DIR / "merged_tags.json"
+        legacy_index = DATA_DIR / "faiss_index"
+        shutil.copy2(DATA_DIR / "merged" / "tags.json", legacy_tags)
+        if legacy_index.exists():
+            shutil.rmtree(legacy_index)
+        shutil.copytree(DATA_DIR / "merged" / "faiss_index", legacy_index)
+        print(f"\n  Legacy files updated: {legacy_tags}, {legacy_index}/")
+
+    elapsed = time.time() - start_total
     print(f"\n{'=' * 60}")
-    print(f"  Build complete!")
-    print(f"  - merged_tags.json: {len(merged)} tags")
-    print(f"  - faiss_index: {len(tags_to_embed)} vectors")
+    print(f"  Build complete! ({elapsed:.1f}s)")
+    for source, (tc, vc) in results.items():
+        print(f"  - {source}: {tc} tags, {vc} vectors")
     print(f"{'=' * 60}")
 
 

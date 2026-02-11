@@ -1,0 +1,4 @@
+# Git LFS tracking for large binary/data files
+data/*/faiss_index/index.faiss filter=lfs diff=lfs merge=lfs -text
+data/*/faiss_index/index.pkl filter=lfs diff=lfs merge=lfs -text
+data/*/tags.json filter=lfs diff=lfs merge=lfs -text

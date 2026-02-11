@@ -37,6 +37,7 @@
     const settingsClose = document.getElementById('settings-close');
     const settingsPanel = document.getElementById('settings-panel');
     const settingsOverlay = document.getElementById('settings-overlay');
+    const tagSourceSelect = document.getElementById('tag-source-select');
     const providerSelect = document.getElementById('provider-select');
     const modelSelect = document.getElementById('model-select');
     const modelHint = document.getElementById('model-hint');
@@ -324,6 +325,16 @@
             ollamaUrlInput.value = cfg.ollama_base_url;
             if (cfg.has_api_key) apiKeyInput.placeholder = '(configured)';
 
+            // Tag source
+            if (cfg.tag_source) {
+                tagSourceSelect.value = cfg.tag_source;
+            }
+            if (cfg.available_sources) {
+                Array.from(tagSourceSelect.options).forEach(opt => {
+                    opt.disabled = !cfg.available_sources.includes(opt.value);
+                });
+            }
+
             // Populate model select AFTER setting provider
             onProviderChange();
             populateModelSelect(cfg.provider, cfg.model);
@@ -338,6 +349,7 @@
             provider: providerSelect.value,
             model: modelSelect.value,
             temperature: parseFloat(temperatureRange.value),
+            tag_source: tagSourceSelect.value,
         };
 
         if (providerSelect.value === 'ollama') {
@@ -747,6 +759,10 @@
             healthDot.className = 'health-dot ok';
             const parts = [];
             parts.push(`${h.tag_count.toLocaleString()} tags`);
+            if (h.tag_source) {
+                const sourceLabels = { danbooru: 'Danbooru', anima: 'Anima', merged: 'Merged' };
+                parts.push(sourceLabels[h.tag_source] || h.tag_source);
+            }
             parts.push(h.index_loaded ? 'FAISS ready' : 'FAISS not loaded');
             parts.push(h.llm_configured ? 'LLM ready' : 'LLM not configured');
             healthText.textContent = parts.join(' \u00B7 ');

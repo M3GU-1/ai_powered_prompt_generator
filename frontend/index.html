@@ -23,6 +23,16 @@
         </div>
         <div class="settings-body">
             <div class="form-group">
+                <label for="tag-source-select">Tag Source</label>
+                <select id="tag-source-select">
+                    <option value="merged">Both (Merged)</option>
+                    <option value="danbooru">Danbooru Only</option>
+                    <option value="anima">Anima Only</option>
+                </select>
+                <span class="hint">Select which tag database to use for matching</span>
+            </div>
+            <div class="settings-divider"></div>
+            <div class="form-group">
                 <label for="provider-select">Provider</label>
                 <select id="provider-select">
                     <option value="openai">OpenAI</option>

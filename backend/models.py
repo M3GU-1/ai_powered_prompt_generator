@@ -67,6 +67,7 @@ class ConfigUpdateRequest(BaseModel):
     api_key: Optional[str] = None
     ollama_base_url: Optional[str] = None
     temperature: Optional[float] = None
+    tag_source: Optional[str] = None
 
 
 class ConfigResponse(BaseModel):
@@ -75,6 +76,8 @@ class ConfigResponse(BaseModel):
     has_api_key: bool
     ollama_base_url: str
     temperature: float
+    tag_source: str = "merged"
+    available_sources: List[str] = []
 
 
 class HealthResponse(BaseModel):
@@ -82,3 +85,4 @@ class HealthResponse(BaseModel):
     index_loaded: bool
     tag_count: int
     llm_configured: bool
+    tag_source: str = "merged"

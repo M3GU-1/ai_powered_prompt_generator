@@ -33,6 +33,65 @@ SSE_HEADERS = {
     "X-Accel-Buffering": "no",
 }
 
+VALID_TAG_SOURCES = ("danbooru", "anima", "merged")
+
+
+def _get_available_sources() -> list:
+    """Return list of tag sources that have pre-built indexes."""
+    available = []
+    for source in VALID_TAG_SOURCES:
+        source_dir = DATA_DIR / source
+        if (source_dir / "tags.json").exists():
+            available.append(source)
+    # Fallback: check legacy merged path
+    if "merged" not in available and (DATA_DIR / "merged_tags.json").exists():
+        available.append("merged")
+    return available
+
+
+def _resolve_source_paths(source: str):
+    """Resolve tags.json and faiss_index paths for a given source.
+    Returns (tags_path, index_path) or (None, None) if not found."""
+    source_dir = DATA_DIR / source
+    tags_path = source_dir / "tags.json"
+    index_path = source_dir / "faiss_index"
+
+    if tags_path.exists():
+        return str(tags_path), str(index_path)
+
+    # Legacy fallback for merged
+    if source == "merged":
+        legacy_tags = DATA_DIR / "merged_tags.json"
+        legacy_index = DATA_DIR / "faiss_index"
+        if legacy_tags.exists():
+            return str(legacy_tags), str(legacy_index)
+
+    return None, None
+
+
+def _load_tag_source(source: str, existing_vs=None):
+    """Load TagDatabase, VectorSearch, and TagMatcher for a source.
+    Reuses existing VectorSearch embedding model if provided."""
+    tags_path, index_path = _resolve_source_paths(source)
+    if tags_path is None:
+        return None, None, None
+
+    tag_db = TagDatabase(tags_path)
+    logger.info(f"Loaded {tag_db.total_tags} tags from source '{source}'")
+
+    if existing_vs is not None:
+        existing_vs.reload(index_path)
+        vs = existing_vs
+    else:
+        try:
+            vs = VectorSearch(index_path)
+        except Exception as e:
+            logger.error(f"Failed to load FAISS index for '{source}': {e}")
+            vs = VectorSearch.__new__(VectorSearch)
+            vs.vector_store = None
+
+    return tag_db, vs, source
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -40,33 +99,30 @@ async def lifespan(app: FastAPI):
     config = load_config()
     app.state.config = config
 
-    # Load tag database
-    merged_path = DATA_DIR / "merged_tags.json"
-    if not merged_path.exists():
-        logger.error("merged_tags.json not found. Run: python scripts/build_embeddings.py")
+    # Load tag source
+    source = config.tag_source
+    available = _get_available_sources()
+
+    if source not in available and available:
+        logger.warning(f"Tag source '{source}' not available. Trying fallback...")
+        source = available[0]
+
+    tag_db, vs, loaded_source = _load_tag_source(source)
+
+    if tag_db is None:
+        logger.error(
+            "No tag data available. Run: python scripts/build_embeddings.py\n"
+            "Or if this is a fresh clone: git lfs pull"
+        )
         app.state.tag_db = None
         app.state.vector_search = None
         app.state.tag_matcher = None
     else:
-        app.state.tag_db = TagDatabase(str(merged_path))
-        logger.info(f"Loaded {app.state.tag_db.total_tags} tags")
-
-        # Load vector search
-        index_path = str(DATA_DIR / "faiss_index")
-        try:
-            app.state.vector_search = VectorSearch(index_path)
-            logger.info("FAISS index loaded")
-        except Exception as e:
-            logger.error(f"Failed to load FAISS index: {e}")
-            app.state.vector_search = VectorSearch.__new__(VectorSearch)
-            app.state.vector_search.vector_store = None
-
-        # Initialize tag matcher
-        app.state.tag_matcher = TagMatcher(
-            app.state.tag_db,
-            app.state.vector_search,
-            config.matching,
-        )
+        app.state.tag_db = tag_db
+        app.state.vector_search = vs
+        app.state.tag_matcher = TagMatcher(tag_db, vs, config.matching)
+        config.tag_source = loaded_source
+        logger.info(f"Tag source '{loaded_source}' loaded ({tag_db.total_tags} tags)")
 
     # Initialize LLM service
     try:
@@ -100,6 +156,7 @@ async def health() -> HealthResponse:
         index_loaded=vs is not None and getattr(vs, "is_loaded", False),
         tag_count=tag_db.total_tags if tag_db else 0,
         llm_configured=app.state.llm_service is not None,
+        tag_source=app.state.config.tag_source,
     )
 
 
@@ -254,13 +311,16 @@ async def match_tag(req: MatchRequest) -> List[TagCandidate]:
 
 @app.get("/api/config")
 async def get_config() -> ConfigResponse:
-    cfg = app.state.config.llm
+    cfg = app.state.config
+    llm = cfg.llm
     return ConfigResponse(
-        provider=cfg.provider,
-        model=cfg.model,
-        has_api_key=bool(cfg.api_key),
-        ollama_base_url=cfg.ollama_base_url,
-        temperature=cfg.temperature,
+        provider=llm.provider,
+        model=llm.model,
+        has_api_key=bool(llm.api_key),
+        ollama_base_url=llm.ollama_base_url,
+        temperature=llm.temperature,
+        tag_source=cfg.tag_source,
+        available_sources=_get_available_sources(),
     )
 
 
@@ -286,6 +346,27 @@ async def update_config(req: ConfigUpdateRequest) -> ConfigResponse:
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to initialize LLM: {str(e)}")
 
+    # Handle tag source change
+    if req.tag_source is not None and req.tag_source != cfg.tag_source:
+        if req.tag_source not in VALID_TAG_SOURCES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid tag source: {req.tag_source}. Must be one of {VALID_TAG_SOURCES}",
+            )
+        tag_db, vs, _ = _load_tag_source(
+            req.tag_source, existing_vs=app.state.vector_search,
+        )
+        if tag_db is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Tag source '{req.tag_source}' not available. Run build_embeddings.py first.",
+            )
+        app.state.tag_db = tag_db
+        app.state.vector_search = vs
+        app.state.tag_matcher = TagMatcher(tag_db, vs, cfg.matching)
+        cfg.tag_source = req.tag_source
+        logger.info(f"Tag source switched to '{req.tag_source}' ({tag_db.total_tags} tags)")
+
     # Save to disk
     save_config(cfg)
 
@@ -295,6 +376,8 @@ async def update_config(req: ConfigUpdateRequest) -> ConfigResponse:
         has_api_key=bool(llm_cfg.api_key),
         ollama_base_url=llm_cfg.ollama_base_url,
         temperature=llm_cfg.temperature,
+        tag_source=cfg.tag_source,
+        available_sources=_get_available_sources(),
     )
 
 

@@ -309,7 +309,7 @@ def _build_tools(tag_db, vector_search, custom_tags: Optional[List[str]] = None,
                     continue
                 results.append({
                     "tag": item["tag"], "category": item["category"],
-                    "count": item["count"], "similarity": item["score"],
+                    "count": item["count"], "similarity": float(item["score"]),
                 })
 
         # Prefix search

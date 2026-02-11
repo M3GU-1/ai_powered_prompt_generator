@@ -34,6 +34,7 @@ class AppConfig(BaseModel):
     llm: LLMConfig = LLMConfig()
     matching: MatchingConfig = MatchingConfig()
     server: ServerConfig = ServerConfig()
+    tag_source: str = "merged"  # "danbooru" | "anima" | "merged"
 
 
 def load_config() -> AppConfig:

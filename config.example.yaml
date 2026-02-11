@@ -14,3 +14,5 @@ matching:
 server:
   host: "127.0.0.1"
   port: 8000
+
+tag_source: "merged"                 # "danbooru" | "anima" | "merged"
