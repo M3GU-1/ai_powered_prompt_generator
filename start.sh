@@ -18,15 +18,18 @@ pip3 install -r requirements.txt --quiet 2>/dev/null || {
     echo "[WARN] Some packages may have failed. Try: pip3 install -r requirements.txt"
 }
 
-# Check if FAISS index exists
-if [ ! -f "data/faiss_index/index.faiss" ]; then
+# Check if any FAISS index exists (new per-source or legacy path)
+if [ -f "data/merged/faiss_index/index.faiss" ] || \
+   [ -f "data/danbooru/faiss_index/index.faiss" ] || \
+   [ -f "data/anima/faiss_index/index.faiss" ] || \
+   [ -f "data/faiss_index/index.faiss" ]; then
+    echo "[2/3] Tag embeddings found. Skipping build."
+else
     echo ""
     echo "[2/3] Building tag embeddings (first-time setup)..."
     echo "       This may take 10-20 minutes. Please wait."
     echo ""
     python3 scripts/build_embeddings.py
-else
-    echo "[2/3] Tag embeddings already built. Skipping."
 fi
 
 echo ""

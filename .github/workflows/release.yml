@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          lfs: true
 
       - name: Get version from tag
         id: version
@@ -46,6 +48,15 @@ jobs:
           zip -r "${PKG_NAME}.zip" "${PKG_NAME}/"
           tar -czf "${PKG_NAME}.tar.gz" "${PKG_NAME}/"
 
+      - name: Create tag index archives
+        run: |
+          for source in danbooru anima merged; do
+            if [ -d "data/${source}" ]; then
+              tar -czf "tag-index-${source}.tar.gz" -C data "${source}"
+              echo "Created tag-index-${source}.tar.gz ($(du -h tag-index-${source}.tar.gz | cut -f1))"
+            fi
+          done
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         env:
@@ -62,7 +73,24 @@ jobs:
                - **Windows**: `start.bat` 더블클릭
                - **Mac/Linux**: 터미널에서 `./start.sh` 실행
 
-            > 첫 실행 시 Python 패키지 설치 및 태그 임베딩 빌드가 자동으로 진행됩니다 (10~20분).
+            ### 태그 인덱스 (선택 다운로드)
+
+            임베딩 빌드(10~20분) 없이 바로 사용하려면, 아래에서 인덱스를 다운로드하여
+            프로젝트의 `data/` 폴더에 압축 해제하세요:
+
+            | 파일 | 설명 | 태그 수 |
+            |------|------|---------|
+            | `tag-index-merged.tar.gz` | 통합 (권장) | 183,700 |
+            | `tag-index-danbooru.tar.gz` | Danbooru만 | 32,259 |
+            | `tag-index-anima.tar.gz` | Anima만 | 183,174 |
+
+            ```bash
+            # 예시: merged 인덱스 설치
+            tar -xzf tag-index-merged.tar.gz -C data/
+            ```
+
+            > 인덱스를 다운로드하면 첫 실행 시 임베딩 빌드가 자동으로 스킵됩니다.
+            > Git Clone 사용자는 Git LFS로 인덱스가 자동 포함되므로 별도 다운로드가 불필요합니다.
 
             ### 사전 요구사항
             - Python 3.10 이상
@@ -70,5 +98,6 @@ jobs:
           files: |
             sd-prompt-tag-generator-*.zip
             sd-prompt-tag-generator-*.tar.gz
+            tag-index-*.tar.gz
           draft: false
           prerelease: false

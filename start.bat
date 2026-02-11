@@ -23,8 +23,16 @@ if errorlevel 1 (
     echo        Try running: pip install -r requirements.txt
 )
 
-REM Check if FAISS index exists
-if not exist "data\faiss_index\index.faiss" (
+REM Check if any FAISS index exists (new per-source or legacy path)
+set "INDEX_FOUND=0"
+if exist "data\merged\faiss_index\index.faiss" set "INDEX_FOUND=1"
+if exist "data\danbooru\faiss_index\index.faiss" set "INDEX_FOUND=1"
+if exist "data\anima\faiss_index\index.faiss" set "INDEX_FOUND=1"
+if exist "data\faiss_index\index.faiss" set "INDEX_FOUND=1"
+
+if "%INDEX_FOUND%"=="1" (
+    echo [2/3] Tag embeddings found. Skipping build.
+) else (
     echo.
     echo [2/3] Building tag embeddings (first-time setup)...
     echo        This may take 10-20 minutes. Please wait.
@@ -35,8 +43,6 @@ if not exist "data\faiss_index\index.faiss" (
         pause
         exit /b 1
     )
-) else (
-    echo [2/3] Tag embeddings already built. Skipping.
 )
 
 echo.

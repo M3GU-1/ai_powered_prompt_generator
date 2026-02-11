@@ -49,12 +49,32 @@ tar -xzf sd-prompt-tag-generator-v*.tar.gz
 cd sd-prompt-tag-generator-v*
 ```
 
+**태그 인덱스 다운로드 (선택 — 임베딩 빌드 10~20분 스킵):**
+
+같은 Releases 페이지에서 태그 인덱스 파일을 다운로드하면 첫 실행 시 빌드 과정을 건너뛸 수 있습니다:
+
+| 파일 | 설명 | 태그 수 |
+|------|------|---------|
+| `tag-index-merged.tar.gz` | 통합 (권장) | 183,700 |
+| `tag-index-danbooru.tar.gz` | Danbooru만 | 32,259 |
+| `tag-index-anima.tar.gz` | Anima만 | 183,174 |
+
+```bash
+# data/ 폴더에 압축 해제 (1개 이상 선택)
+tar -xzf tag-index-merged.tar.gz -C data/
+```
+
+> 태그 소스는 웹 UI의 Settings에서 언제든 전환할 수 있습니다.
+
 #### 방법 B — Git Clone
 
 ```bash
 git clone https://github.com/M3GU-1/ai_powered_prompt_generator.git
 cd ai_powered_prompt_generator
 ```
+
+> Git LFS가 설치되어 있으면 pre-built 인덱스가 자동으로 포함됩니다.
+> LFS 미설치 시: `git lfs install && git lfs pull`
 
 ### 2단계: 설정 파일 생성
 
@@ -89,7 +109,7 @@ start.bat
 
 첫 실행 시 자동으로 다음 작업이 수행됩니다:
 1. Python 패키지 설치 (`requirements.txt`)
-2. 태그 임베딩 인덱스 빌드 (10~20분 소요, **최초 1회만**)
+2. 태그 임베딩 인덱스 빌드 (10~20분 소요, **최초 1회만** — pre-built 인덱스가 있으면 자동 스킵)
 3. 서버 시작 + 브라우저 자동 열림
 
 서버가 시작되면 **http://127.0.0.1:8000** 에서 접속할 수 있습니다.
@@ -128,6 +148,7 @@ start.bat
 
 | 설정 | 설명 |
 |------|------|
+| **Tag Source** | 태그 데이터베이스 선택 (Merged / Danbooru / Anima) |
 | **Provider** | OpenAI, Google Gemini, Ollama 중 선택 |
 | **Model** | 프로바이더별 최신 모델 드롭다운 제공 |
 | **API Key** | 선택한 프로바이더의 API 키 |
@@ -175,6 +196,8 @@ Llama 3.2, Llama 3.1, Mistral, Mixtral, Qwen 2.5, Gemma 2, Phi 3 등 설치된 �
 pip install -r requirements.txt
 
 # 2. 태그 임베딩 인덱스 빌드 (최초 1회)
+# Git Clone 사용자는 LFS로 인덱스가 포함되어 있으므로 이 단계를 건너뛸 수 있습니다.
+# Release 사용자는 tag-index-*.tar.gz를 data/에 압축 해제하면 건너뛸 수 있습니다.
 python scripts/build_embeddings.py
 
 # 3. 설정 파일 생성
@@ -285,12 +308,18 @@ ai_powered_prompt_generator/
 
 ### 자동 릴리즈 (GitHub Actions)
 
-태그를 푸시하면 GitHub Actions가 자동으로 Release를 생성하고 zip/tar.gz를 첨부합니다:
+태그를 푸시하면 GitHub Actions가 자동으로 Release를 생성하고 소스 패키지 + 태그 인덱스 아카이브를 첨부합니다:
 
 ```bash
 git tag v1.0.0
 git push origin v1.0.0
 ```
+
+Release에 포함되는 파일:
+- `sd-prompt-tag-generator-v*.zip / .tar.gz` — 소스 코드 패키지
+- `tag-index-danbooru.tar.gz` — Danbooru 태그 인덱스
+- `tag-index-anima.tar.gz` — Anima 태그 인덱스
+- `tag-index-merged.tar.gz` — 통합 태그 인덱스
 
 ### 수동 패키징
 
