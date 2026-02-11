@@ -173,7 +173,7 @@ if "%INDEX_FOUND%"=="1" (
     echo [2/3] Tag embeddings found. Skipping build.
 ) else (
     echo.
-    echo [2/3] Building tag embeddings (first-time setup)...
+    echo [2/3] Building tag embeddings ^(first-time setup^)...
     echo        This may take 10-20 minutes. Please wait.
     echo [2/3] Building embeddings... >> "%LOGFILE%"
     echo.
@@ -206,7 +206,7 @@ echo Server exited with code %SERVER_EXIT% >> "%LOGFILE%"
 
 if %SERVER_EXIT% neq 0 (
     echo.
-    echo [ERROR] Server stopped with an error (code %SERVER_EXIT%).
+    echo [ERROR] Server stopped with an error ^(code %SERVER_EXIT%^).
     echo         Check the messages above or startup.log for details.
     exit /b 1
 )
