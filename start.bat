@@ -8,6 +8,7 @@ REM  Even if the inner logic crashes fatally, control returns here
 REM  and the window stays open so the user can read the error.
 REM ================================================================
 if "%~1"=="--run" goto :run
+if "%~1"=="--open-browser" goto :open_browser
 
 cmd /c ""%~f0" --run"
 
@@ -197,8 +198,8 @@ echo   Press Ctrl+C to stop
 echo ============================================================
 echo.
 
-REM Open browser (delayed to give server time to start)
-start "" http://127.0.0.1:8000
+REM Open browser in background after server is ready
+start /b cmd /c ""%~f0" --open-browser"
 
 %PYTHON_CMD% -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 2>&1
 set "SERVER_EXIT=%errorlevel%"
@@ -214,3 +215,20 @@ if %SERVER_EXIT% neq 0 (
 echo.
 echo Server stopped.
 exit /b 0
+
+REM ================================================================
+:open_browser
+REM Polls the health endpoint until server is ready, then opens browser.
+REM Runs in background via "start /b cmd /c".
+REM ================================================================
+set /a "TRIES=0"
+:wait_loop
+if %TRIES% geq 30 exit /b 1
+timeout /t 1 /nobreak >nul
+curl.exe -s -o nul http://127.0.0.1:8000/api/health >nul 2>&1
+if not errorlevel 1 (
+    start "" http://127.0.0.1:8000
+    exit /b 0
+)
+set /a "TRIES+=1"
+goto :wait_loop
