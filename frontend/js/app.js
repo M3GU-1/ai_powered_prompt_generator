@@ -17,6 +17,7 @@
             { value: 'o3-mini', label: 'o3 Mini (Reasoning)' },
         ],
         gemini: [
+            { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash' },
             { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
             { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash' },
             { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
@@ -54,6 +55,7 @@
     const tabs = document.querySelectorAll('.tab');
     const modePanels = {
         generate: document.getElementById('mode-generate'),
+        image: document.getElementById('mode-image'),
         random: document.getElementById('mode-random'),
         scene: document.getElementById('mode-scene'),
     };
@@ -66,6 +68,17 @@
     const detailedCheck = document.getElementById('detailed-check');
     const animaCheck = document.getElementById('anima-check');
     const generateBtn = document.getElementById('generate-btn');
+
+    // Image analyze mode
+    const imageDropZone = document.getElementById('image-drop-zone');
+    const imageDropPlaceholder = document.getElementById('image-drop-placeholder');
+    const imagePreviewContainer = document.getElementById('image-preview-container');
+    const imagePreview = document.getElementById('image-preview');
+    const imageClearBtn = document.getElementById('image-clear-btn');
+    const imageFileInput = document.getElementById('image-file-input');
+    const imageDetailedCheck = document.getElementById('image-detailed-check');
+    const imageAnimaCheck = document.getElementById('image-anima-check');
+    const imageAnalyzeBtn = document.getElementById('image-analyze-btn');
 
     // Random expand mode
     const randomBaseInput = document.getElementById('random-base-input');
@@ -107,6 +120,15 @@
     const healthDot = document.getElementById('health-indicator');
     const healthText = document.getElementById('health-text');
 
+    // Usage
+    const usageTotalRequests = document.getElementById('usage-total-requests');
+    const usageTotalInput = document.getElementById('usage-total-input');
+    const usageTotalOutput = document.getElementById('usage-total-output');
+    const usageTotalCache = document.getElementById('usage-total-cache');
+    const usageTotalTokens = document.getElementById('usage-total-tokens');
+    const usageChart = document.getElementById('usage-chart');
+    const resetUsageBtn = document.getElementById('reset-usage-btn');
+
     // --- State ---
     let numTags = 20;
     let currentMode = 'generate';
@@ -115,6 +137,7 @@
     let autocompleteTimer = null;
     let abortController = null;
     let logEntryCount = 0;
+    let imageData = null; // { base64: string, mimeType: string }
 
     // --- Initialize ---
     function init() {
@@ -140,6 +163,15 @@
         tagsPlusBtn.addEventListener('click', () => updateTagCount(5));
         generateBtn.addEventListener('click', handleGenerate);
 
+        // Image analyze mode
+        imageDropZone.addEventListener('click', () => imageFileInput.click());
+        imageDropZone.addEventListener('dragover', onImageDragOver);
+        imageDropZone.addEventListener('dragleave', onImageDragLeave);
+        imageDropZone.addEventListener('drop', onImageDrop);
+        imageFileInput.addEventListener('change', onImageFileSelected);
+        imageClearBtn.addEventListener('click', (e) => { e.stopPropagation(); clearImage(); });
+        imageAnalyzeBtn.addEventListener('click', handleImageAnalyze);
+
         // Random expand mode
         nsfwBtns.forEach(btn => {
             btn.addEventListener('click', () => toggleNsfw(btn));
@@ -161,6 +193,9 @@
 
         // Log toggle
         logToggleBtn.addEventListener('click', toggleLog);
+
+        // Usage
+        resetUsageBtn.addEventListener('click', handleResetUsage);
 
         // Keyboard shortcuts
         descriptionInput.addEventListener('keydown', (e) => {
@@ -185,6 +220,7 @@
     function openSettings() {
         settingsPanel.classList.add('open');
         settingsOverlay.classList.add('visible');
+        loadUsageData();
     }
 
     function closeSettings() {
@@ -416,6 +452,88 @@
     }
 
     // ===========================
+    //  Image Upload
+    // ===========================
+    const MAX_IMAGE_SIZE = 4 * 1024 * 1024; // 4MB
+
+    function onImageDragOver(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        imageDropZone.classList.add('drag-over');
+    }
+
+    function onImageDragLeave(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        imageDropZone.classList.remove('drag-over');
+    }
+
+    function onImageDrop(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        imageDropZone.classList.remove('drag-over');
+        const files = e.dataTransfer.files;
+        if (files.length > 0) processImageFile(files[0]);
+    }
+
+    function onImageFileSelected() {
+        if (imageFileInput.files.length > 0) {
+            processImageFile(imageFileInput.files[0]);
+        }
+    }
+
+    function processImageFile(file) {
+        if (!file.type.startsWith('image/')) {
+            showStatus('Please select an image file.', true);
+            return;
+        }
+        if (file.size > MAX_IMAGE_SIZE) {
+            showStatus('Image too large (max 4MB).', true);
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = function (e) {
+            const dataUrl = e.target.result;
+            // Extract base64 data (remove "data:image/png;base64," prefix)
+            const base64 = dataUrl.split(',')[1];
+            imageData = { base64, mimeType: file.type };
+
+            // Show preview
+            imagePreview.src = dataUrl;
+            imageDropPlaceholder.classList.add('hidden');
+            imagePreviewContainer.classList.remove('hidden');
+            imageAnalyzeBtn.disabled = false;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function clearImage() {
+        imageData = null;
+        imageFileInput.value = '';
+        imagePreview.src = '';
+        imagePreviewContainer.classList.add('hidden');
+        imageDropPlaceholder.classList.remove('hidden');
+        imageAnalyzeBtn.disabled = true;
+    }
+
+    async function handleImageAnalyze() {
+        if (!imageData) {
+            showStatus('Please upload an image first.', true);
+            return;
+        }
+
+        const body = {
+            image: imageData.base64,
+            mime_type: imageData.mimeType,
+            detailed: imageDetailedCheck.checked,
+            anima_mode: imageAnimaCheck.checked,
+        };
+
+        await runStreaming('/api/analyze-image/stream', body, imageAnalyzeBtn);
+    }
+
+    // ===========================
     //  Streaming Log
     // ===========================
     function toggleLog() {
@@ -463,16 +581,60 @@
         logContainer.scrollTop = logContainer.scrollHeight;
     }
 
+    function formatLogValue(val) {
+        if (val == null) return '';
+        if (typeof val === 'string') return val;
+        try { return JSON.stringify(val, null, 1); } catch { return String(val); }
+    }
+
+    function summarizeFunctionArgs(args) {
+        if (!args || typeof args !== 'object') return formatLogValue(args);
+        const parts = [];
+        for (const [k, v] of Object.entries(args)) {
+            const sv = typeof v === 'string'
+                ? (v.length > 60 ? v.substring(0, 60) + '…' : v)
+                : JSON.stringify(v);
+            parts.push(`${k}: ${sv}`);
+        }
+        return parts.join(', ');
+    }
+
+    function summarizeFunctionResult(result) {
+        if (!result || typeof result !== 'object') return formatLogValue(result);
+        // submit_final_tags: show tag list
+        if (Array.isArray(result.tags)) {
+            const tagNames = result.tags.map(t =>
+                typeof t === 'string' ? t : (t.matched || t.original || t.name || JSON.stringify(t))
+            );
+            const preview = tagNames.slice(0, 15).join(', ');
+            const suffix = tagNames.length > 15 ? ` … +${tagNames.length - 15}` : '';
+            return `[${tagNames.length} tags] ${preview}${suffix}`;
+        }
+        // search_tags: show results array
+        if (Array.isArray(result.results)) {
+            const items = result.results.map(r =>
+                typeof r === 'string' ? r : (r.tag || r.name || JSON.stringify(r))
+            );
+            const preview = items.slice(0, 10).join(', ');
+            const suffix = items.length > 10 ? ` … +${items.length - 10}` : '';
+            return `[${items.length} results] ${preview}${suffix}`;
+        }
+        // error
+        if (result.error) return `error: ${result.error}`;
+        // generic: compact JSON
+        const json = JSON.stringify(result);
+        return json.length > 300 ? json.substring(0, 300) + '…' : json;
+    }
+
     function processLogEvent(event) {
         if (event.type === 'log') {
             const d = event.data;
             let content = d.content || '';
 
             if (d.type === 'function_call') {
-                content = `${d.functionName}(${d.functionArgs || ''})`;
+                content = `${d.functionName}(${summarizeFunctionArgs(d.functionArgs)})`;
             } else if (d.type === 'function_result') {
-                const result = d.functionResult || '';
-                content = result.length > 200 ? result.substring(0, 200) + '...' : result;
+                content = `${d.functionName || ''} → ${summarizeFunctionResult(d.functionResult)}`;
             }
 
             if (content) {
@@ -580,15 +742,15 @@
                         if (tags.length > 0 && typeof tags[0] === 'object' && tags[0].match_method) {
                             tagEditor.setTags(tags);
                         } else {
-                            // Tags are strings - need to display as all-selected
+                            // Tags are strings (legacy fallback) - mark as unmatched
                             const tagObjects = tags.map(t => {
                                 const tagName = typeof t === 'string' ? t : (t.tag || String(t));
                                 return {
                                     tag: tagName,
                                     category: typeof t === 'object' ? (t.category || 0) : 0,
                                     count: typeof t === 'object' ? (t.count || 0) : 0,
-                                    match_method: 'exact',
-                                    similarity_score: 1.0,
+                                    match_method: 'unmatched',
+                                    similarity_score: 0.0,
                                     llm_original: tagName,
                                 };
                             });
@@ -601,6 +763,14 @@
                     } else {
                         showStatus(`Error: ${event.data.error || 'Unknown error'}`, true);
                         addLogEntry('error', event.data.error || 'Generation failed');
+                    }
+
+                    // Log token usage if present
+                    if (event.data.usage) {
+                        const u = event.data.usage;
+                        const parts = [`${formatTokenCount(u.input_tokens || 0)} in`, `${formatTokenCount(u.output_tokens || 0)} out`];
+                        if (u.cache_read_tokens) parts.push(`${formatTokenCount(u.cache_read_tokens)} cached`);
+                        addLogEntry('info', `Tokens: ${parts.join(' / ')}`);
                     }
                 }
             }
@@ -705,7 +875,7 @@
     function addCustomTag() {
         const tag = customTagInput.value.trim().replace(/\s+/g, '_').toLowerCase();
         if (!tag) return;
-        tagEditor.addTag(tag, 0, 0);
+        tagEditor.addTag(tag, 0, 0, 'custom');
         customTagInput.value = '';
         autocompleteDropdown.classList.add('hidden');
     }
@@ -748,6 +918,136 @@
 
     function hideStatus() {
         statusBar.classList.add('hidden');
+    }
+
+    // ===========================
+    //  API Usage
+    // ===========================
+    async function loadUsageData() {
+        try {
+            const data = await API.getUsage();
+            renderUsageSummary(data.total || {});
+            renderUsageChart(data.daily || {});
+        } catch (e) {
+            console.warn('Failed to load usage data:', e);
+        }
+    }
+
+    function renderUsageSummary(total) {
+        usageTotalRequests.textContent = formatTokenCount(total.request_count || 0);
+        usageTotalInput.textContent = formatTokenCount(total.input_tokens || 0);
+        usageTotalOutput.textContent = formatTokenCount(total.output_tokens || 0);
+        usageTotalCache.textContent = formatTokenCount(total.cache_read_tokens || 0);
+        usageTotalTokens.textContent = formatTokenCount(total.total_tokens || 0);
+    }
+
+    function formatTokenCount(n) {
+        if (n >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
+        if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
+        return String(n);
+    }
+
+    function renderUsageChart(daily) {
+        const canvas = usageChart;
+        const ctx = canvas.getContext('2d');
+
+        // High-DPI support
+        const dpr = window.devicePixelRatio || 1;
+        const rect = canvas.parentElement.getBoundingClientRect();
+        const W = rect.width - 24; // subtract container padding
+        const H = rect.height - 20;
+        canvas.width = W * dpr;
+        canvas.height = H * dpr;
+        canvas.style.width = W + 'px';
+        canvas.style.height = H + 'px';
+        ctx.scale(dpr, dpr);
+
+        ctx.clearRect(0, 0, W, H);
+
+        // Get last 14 days
+        const days = [];
+        const today = new Date();
+        for (let i = 13; i >= 0; i--) {
+            const d = new Date(today);
+            d.setDate(d.getDate() - i);
+            days.push(d.toISOString().slice(0, 10));
+        }
+
+        const inputData = days.map(d => (daily[d] || {}).input_tokens || 0);
+        const outputData = days.map(d => (daily[d] || {}).output_tokens || 0);
+        const maxVal = Math.max(1, ...inputData.map((v, i) => v + outputData[i]));
+
+        const padding = { top: 16, right: 4, bottom: 20, left: 4 };
+        const chartW = W - padding.left - padding.right;
+        const chartH = H - padding.top - padding.bottom;
+        const barGap = 3;
+        const barW = Math.max(4, (chartW / days.length) - barGap);
+        const step = chartW / days.length;
+
+        // Draw bars (stacked: input on bottom, output on top)
+        days.forEach((day, i) => {
+            const x = padding.left + i * step + (step - barW) / 2;
+            const inputH = (inputData[i] / maxVal) * chartH;
+            const outputH = (outputData[i] / maxVal) * chartH;
+            const totalH = inputH + outputH;
+
+            if (totalH > 0) {
+                // Input tokens (bottom portion)
+                const inputY = padding.top + chartH - totalH;
+                ctx.fillStyle = 'rgba(139, 92, 246, 0.7)';
+                ctx.beginPath();
+                if (ctx.roundRect) {
+                    ctx.roundRect(x, inputY + outputH, barW, inputH, [0, 0, 2, 2]);
+                } else {
+                    ctx.rect(x, inputY + outputH, barW, inputH);
+                }
+                ctx.fill();
+
+                // Output tokens (top portion)
+                ctx.fillStyle = 'rgba(96, 165, 250, 0.7)';
+                ctx.beginPath();
+                if (ctx.roundRect) {
+                    ctx.roundRect(x, inputY, barW, outputH, [2, 2, 0, 0]);
+                } else {
+                    ctx.rect(x, inputY, barW, outputH);
+                }
+                ctx.fill();
+            }
+
+            // Date label (every 2nd day)
+            if (i % 2 === 0 || days.length <= 7) {
+                ctx.fillStyle = '#52525b';
+                ctx.font = '9px Inter, sans-serif';
+                ctx.textAlign = 'center';
+                ctx.fillText(day.slice(5), padding.left + i * step + step / 2, H - 2);
+            }
+        });
+
+        // Legend (top-right)
+        const legendY = 6;
+        ctx.font = '9px Inter, sans-serif';
+
+        ctx.fillStyle = 'rgba(139, 92, 246, 0.8)';
+        ctx.fillRect(W - 86, legendY, 7, 7);
+        ctx.fillStyle = '#8e8ea0';
+        ctx.textAlign = 'left';
+        ctx.fillText('Input', W - 76, legendY + 7);
+
+        ctx.fillStyle = 'rgba(96, 165, 250, 0.8)';
+        ctx.fillRect(W - 42, legendY, 7, 7);
+        ctx.fillStyle = '#8e8ea0';
+        ctx.fillText('Output', W - 32, legendY + 7);
+    }
+
+    async function handleResetUsage() {
+        if (!confirm('Reset all API usage data?')) return;
+        try {
+            await API.resetUsage();
+            await loadUsageData();
+            showConfigStatus('Usage data cleared', false);
+        } catch (e) {
+            showConfigStatus(e.message, true);
+        }
     }
 
     // ===========================

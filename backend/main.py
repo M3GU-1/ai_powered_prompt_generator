@@ -14,12 +14,14 @@ from backend.config_loader import load_config, save_config, LLMConfig, AppConfig
 from backend.models import (
     GenerateRequest, GenerateResponse, MatchRequest,
     StreamGenerateRequest, RandomExpandRequest, SceneExpandRequest,
+    ImageAnalyzeRequest,
     ConfigUpdateRequest, ConfigResponse, HealthResponse, TagCandidate,
 )
 from backend.tag_database import TagDatabase
 from backend.vector_search import VectorSearch
 from backend.tag_matcher import TagMatcher
 from backend.llm_service import LLMService
+from backend.usage_tracker import get_usage_summary, reset_usage
 
 logger = logging.getLogger(__name__)
 
@@ -302,6 +304,51 @@ async def scene_expand_stream(req: SceneExpandRequest):
     )
 
 
+@app.post("/api/analyze-image/stream")
+async def analyze_image_stream(req: ImageAnalyzeRequest):
+    """Analyze an image and extract tags via streaming function calling.
+    Accepts base64-encoded image data and returns SSE stream."""
+    if not app.state.llm_service:
+        raise HTTPException(status_code=503, detail="LLM service not configured.")
+
+    # Validate image data
+    if not req.image:
+        raise HTTPException(status_code=400, detail="Image data is required.")
+    if not req.mime_type.startswith("image/"):
+        raise HTTPException(status_code=400, detail="Invalid mime type. Must be image/*.")
+
+    # Check approximate size (base64 is ~1.33x original)
+    max_size = 4 * 1024 * 1024  # 4MB
+    estimated_size = (len(req.image) * 3) / 4
+    if estimated_size > max_size:
+        raise HTTPException(status_code=400, detail="Image too large (max 4MB).")
+
+    tag_db = app.state.tag_db
+    vs = app.state.vector_search
+
+    async def event_generator():
+        try:
+            async for event in app.state.llm_service.analyze_image_with_tools(
+                image_base64=req.image,
+                mime_type=req.mime_type,
+                tag_db=tag_db,
+                vector_search=vs,
+                detailed=req.detailed,
+                anima_mode=req.anima_mode,
+                custom_tags=req.custom_tags,
+            ):
+                yield event
+        except Exception as e:
+            logger.exception("Error in analyze-image stream")
+            yield _sse_error_event(f"Unexpected error: {str(e)}")
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers=SSE_HEADERS,
+    )
+
+
 @app.post("/api/match")
 async def match_tag(req: MatchRequest) -> List[TagCandidate]:
     if not app.state.tag_matcher:
@@ -379,6 +426,19 @@ async def update_config(req: ConfigUpdateRequest) -> ConfigResponse:
         tag_source=cfg.tag_source,
         available_sources=_get_available_sources(),
     )
+
+
+@app.get("/api/usage")
+async def get_usage():
+    """Get token usage summary and daily stats."""
+    return get_usage_summary()
+
+
+@app.delete("/api/usage")
+async def clear_usage():
+    """Clear all usage data."""
+    reset_usage()
+    return {"status": "ok", "message": "Usage data cleared"}
 
 
 @app.get("/api/tags/search")

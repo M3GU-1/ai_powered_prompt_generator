@@ -63,6 +63,39 @@
                 </div>
                 <span class="hint">Lower = more focused, Higher = more creative</span>
             </div>
+            <div class="settings-divider"></div>
+            <!-- API Usage Section -->
+            <div class="usage-section">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label>API Usage</label>
+                </div>
+                <div class="usage-summary" id="usage-summary">
+                    <div class="usage-stat">
+                        <span class="usage-stat-label">Requests</span>
+                        <span class="usage-stat-value" id="usage-total-requests">0</span>
+                    </div>
+                    <div class="usage-stat">
+                        <span class="usage-stat-label">Input Tokens</span>
+                        <span class="usage-stat-value" id="usage-total-input">0</span>
+                    </div>
+                    <div class="usage-stat">
+                        <span class="usage-stat-label">Output Tokens</span>
+                        <span class="usage-stat-value" id="usage-total-output">0</span>
+                    </div>
+                    <div class="usage-stat">
+                        <span class="usage-stat-label">Cache Read</span>
+                        <span class="usage-stat-value" id="usage-total-cache">0</span>
+                    </div>
+                    <div class="usage-stat full-width">
+                        <span class="usage-stat-label">Total Tokens</span>
+                        <span class="usage-stat-value accent" id="usage-total-tokens">0</span>
+                    </div>
+                </div>
+                <div class="usage-chart-container">
+                    <canvas id="usage-chart"></canvas>
+                </div>
+                <button id="reset-usage-btn" class="btn btn-sm usage-reset-btn">Reset Usage Data</button>
+            </div>
         </div>
         <div class="settings-footer">
             <button id="save-config-btn" class="btn btn-primary">Save Settings</button>
@@ -90,6 +123,7 @@
         <!-- Mode Tabs -->
         <div class="tabs">
             <button class="tab active" data-mode="generate">Generate</button>
+            <button class="tab" data-mode="image">Image Analyze</button>
             <button class="tab" data-mode="random">Random Expand</button>
             <button class="tab" data-mode="scene">Scene Expand</button>
         </div>
@@ -120,6 +154,47 @@
                 <button id="generate-btn" class="generate-btn">
                     <span class="btn-content">
                         <span class="btn-text">Generate Tags</span>
+                        <span class="spinner hidden"></span>
+                    </span>
+                </button>
+            </section>
+        </div>
+
+        <!-- === Image Analyze Mode === -->
+        <div id="mode-image" class="mode-panel hidden">
+            <section class="card">
+                <label class="input-label">Upload Image</label>
+                <div id="image-drop-zone" class="image-drop-zone">
+                    <div id="image-drop-placeholder" class="image-drop-placeholder">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                            <circle cx="8.5" cy="8.5" r="1.5"/>
+                            <polyline points="21 15 16 10 5 21"/>
+                        </svg>
+                        <span class="drop-text">Drag & drop an image here, or click to select</span>
+                        <span class="drop-hint">PNG, JPG, WebP (max 4MB)</span>
+                    </div>
+                    <div id="image-preview-container" class="image-preview-container hidden">
+                        <img id="image-preview" class="image-preview" alt="Preview">
+                        <button id="image-clear-btn" class="image-clear-btn" title="Remove image">&times;</button>
+                    </div>
+                    <input type="file" id="image-file-input" accept="image/*" class="hidden">
+                </div>
+                <div class="options-row">
+                    <div class="toggle-group">
+                        <label class="toggle-item">
+                            <input type="checkbox" id="image-detailed-check">
+                            <span>Detailed</span>
+                        </label>
+                        <label class="toggle-item">
+                            <input type="checkbox" id="image-anima-check">
+                            <span>Anima</span>
+                        </label>
+                    </div>
+                </div>
+                <button id="image-analyze-btn" class="generate-btn" disabled>
+                    <span class="btn-content">
+                        <span class="btn-text">Extract Tags</span>
                         <span class="spinner hidden"></span>
                     </span>
                 </button>

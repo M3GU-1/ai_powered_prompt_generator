@@ -42,6 +42,15 @@ class SceneExpandRequest(BaseModel):
     custom_tags: Optional[List[str]] = None
 
 
+class ImageAnalyzeRequest(BaseModel):
+    """Request for image analysis via streaming function calling."""
+    image: str  # base64 encoded image data (without data URL prefix)
+    mime_type: str = "image/png"
+    detailed: bool = False
+    anima_mode: bool = False
+    custom_tags: Optional[List[str]] = None
+
+
 class TagCandidate(BaseModel):
     tag: str
     category: int

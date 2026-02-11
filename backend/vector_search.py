@@ -49,22 +49,53 @@ class VectorSearch:
     def is_loaded(self) -> bool:
         return self.vector_store is not None
 
-    def search(self, query: str, k: int = 10) -> list[dict]:
-        """Perform similarity search. Returns list of {tag, category, count, score}."""
+    def search(self, query: str, k: int = 10, min_score: float = 0.0) -> list[dict]:
+        """Perform similarity search. Returns list of {tag, category, count, score}.
+
+        Fetches extra candidates internally so that an exact-name match
+        (query == tag name) is virtually guaranteed to appear even when
+        alias-diluted embeddings push it down the ranking.
+        """
         if not self.vector_store:
             return []
 
-        results = self.vector_store.similarity_search_with_score(query, k=k)
+        # Normalize query to match indexing format (build_embedding_text):
+        # underscores → spaces so the embedding model sees the same surface form.
+        search_query = query.strip().replace("_", " ")
+
+        normalized_query = search_query.lower().replace(" ", "_").replace("-", "_")
+
+        # Fetch more candidates to increase chance of finding exact matches
+        fetch_k = max(k * 3, 30)
+        results = self.vector_store.similarity_search_with_score(search_query, k=fetch_k)
+
         output = []
         for doc, distance in results:
-            # FAISS returns L2 distance; convert to 0-1 similarity
-            # L2 distance for normalized vectors: d = 2(1 - cos_sim)
-            # cos_sim = 1 - d/2
+            # FAISS returns squared L2 distance; convert to 0-1 similarity
+            # For unit vectors: ||a-b||² = 2(1 - cos_sim)  →  cos_sim = 1 - d/2
             similarity = max(0.0, 1.0 - distance / 2.0)
+            if similarity < min_score:
+                continue
+            tag_name = doc.metadata["tag"]
+
+            # Boost score when the query closely matches the tag name itself.
+            # This compensates for embeddings that were diluted by alias text.
+            norm_tag = tag_name.lower()
+            if norm_tag == normalized_query:
+                # Exact name match → treat as near-perfect similarity
+                similarity = max(similarity, 0.99)
+            elif normalized_query in norm_tag or norm_tag in normalized_query:
+                # Substring containment → moderate boost
+                similarity = max(similarity, similarity + 0.10)
+                similarity = min(similarity, 0.98)
+
             output.append({
-                "tag": doc.metadata["tag"],
+                "tag": tag_name,
                 "category": doc.metadata["category"],
                 "count": doc.metadata["count"],
                 "score": round(similarity, 4),
             })
-        return output
+
+        # Re-sort by boosted score and return top-k
+        output.sort(key=lambda x: x["score"], reverse=True)
+        return output[:k]

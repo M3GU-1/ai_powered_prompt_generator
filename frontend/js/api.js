@@ -54,6 +54,14 @@ const API = {
         return this._fetch(`/api/tags/search?q=${encodeURIComponent(query)}&limit=${limit}`);
     },
 
+    async getUsage() {
+        return this._fetch('/api/usage');
+    },
+
+    async resetUsage() {
+        return this._fetch('/api/usage', { method: 'DELETE' });
+    },
+
     /**
      * Stream tag generation via SSE (POST).
      * Yields parsed SSE event objects: { type: "log"|"complete", data: {...} }

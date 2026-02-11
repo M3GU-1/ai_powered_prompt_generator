@@ -1,6 +1,6 @@
 llm:
-  provider: "openai"           # "openai" | "gemini" | "ollama"
-  model: "gpt-4o-mini"         # Model name (e.g., gpt-4o-mini, gemini-2.0-flash, llama3.2)
+  provider: "gemini"           # "gemini" (recommended) | "openai" | "ollama"
+  model: "gemini-3-flash-preview"  # Recommended: gemini-3-flash-preview
   api_key: ""                  # API key for openai/gemini (ignored for ollama)
   ollama_base_url: "http://localhost:11434"
   temperature: 0.7

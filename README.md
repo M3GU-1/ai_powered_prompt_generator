@@ -24,14 +24,37 @@
 
 ---
 
+## 권장 AI 모델
+
+> **🔥 Google Gemini API — `gemini-3-flash-preview` 강력 권장**
+>
+> 이 애플리케이션의 모든 기능을 최상의 품질로 사용하려면 **Google Gemini API**를 사용하는 것을 강력히 권장합니다.
+> 특히 **`gemini-3-flash-preview`** 모델은 Stable Diffusion 태그 생성에 최적화된 성능을 보여줍니다:
+>
+> - **높은 태그 정확도**: Danbooru 태그 체계에 대한 깊은 이해로 정확한 태그 생성
+> - **빠른 응답 속도**: Flash 모델 특유의 저지연 스트리밍으로 쾌적한 사용 경험
+> - **다국어 입력 지원**: 한국어/영어/일본어 등 자연어 설명을 정밀하게 해석
+> - **무료 티어 제공**: [Google AI Studio](https://aistudio.google.com/apikey)에서 무료 API 키 발급 가능
+>
+> ```yaml
+> # config.yaml 권장 설정
+> llm:
+>   provider: "gemini"
+>   model: "gemini-3-flash-preview"
+>   api_key: "your-gemini-api-key"
+>   temperature: 0.7
+> ```
+
+---
+
 ## 빠른 시작
 
 ### 사전 준비
 
 - **Python 3.10** 이상 ([다운로드](https://www.python.org/downloads/))
-- **OpenAI API 키** 또는 **Google Gemini API 키** (둘 중 하나)
+- **Google Gemini API 키** (권장) 또는 OpenAI API 키
+  - **Gemini (권장)**: https://aistudio.google.com/apikey — 무료 티어 제공, `gemini-3-flash-preview` 모델 권장
   - OpenAI: https://platform.openai.com/api-keys
-  - Gemini: https://aistudio.google.com/apikey
   - 또는 **Ollama**를 로컬에 설치하면 API 키 없이 사용 가능
 
 ### 1단계: 다운로드
@@ -86,9 +109,9 @@ cp config.example.yaml config.yaml
 
 ```yaml
 llm:
-  provider: "openai"          # "openai" | "gemini" | "ollama"
-  model: "gpt-4o-mini"        # 사용할 모델
-  api_key: "sk-your-key"      # API 키 입력
+  provider: "gemini"                              # "gemini" (권장) | "openai" | "ollama"
+  model: "gemini-3-flash-preview"         # 권장 모델
+  api_key: "your-gemini-api-key"                   # API 키 입력
   temperature: 0.7
 ```
 
@@ -162,8 +185,8 @@ start.bat
 **OpenAI:**
 GPT-4.1, GPT-4.1 Mini, GPT-4.1 Nano, GPT-4o, GPT-4o Mini, o4 Mini, o3, o3 Mini
 
-**Google Gemini:**
-Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.0 Flash, Gemini 1.5 Pro, Gemini 1.5 Flash
+**Google Gemini (권장):**
+**Gemini 3 Flash Preview ⭐ (권장)**, Gemini 2.5 Pro, Gemini 2.5 Flash, Gemini 2.0 Flash, Gemini 1.5 Pro, Gemini 1.5 Flash
 
 **Ollama (로컬):**
 Llama 3.2, Llama 3.1, Mistral, Mixtral, Qwen 2.5, Gemma 2, Phi 3 등 설치된 모든 모델

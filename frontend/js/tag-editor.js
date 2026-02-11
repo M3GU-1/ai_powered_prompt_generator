@@ -17,14 +17,14 @@ class TagEditor {
         this._notifyChange();
     }
 
-    addTag(tag, category, count) {
+    addTag(tag, category, count, matchMethod = 'exact') {
         if (this.tags.some(t => t.tag === tag)) return;
         this.tags.push({
             tag,
             category,
             count,
-            match_method: 'exact',
-            similarity_score: 1.0,
+            match_method: matchMethod,
+            similarity_score: matchMethod === 'exact' || matchMethod === 'alias' ? 1.0 : 0.0,
             llm_original: 'custom',
             selected: true,
         });
@@ -49,7 +49,7 @@ class TagEditor {
     }
 
     getPromptString() {
-        return this.getSelectedTags().join(', ');
+        return this.getSelectedTags().map(t => t.replaceAll('_', ' ')).join(', ');
     }
 
     clear() {
@@ -81,14 +81,18 @@ class TagEditor {
         const legend = document.createElement('div');
         legend.className = 'legend';
 
+        const usedMethods = new Set(this.tags.map(t => t.match_method));
+
         const methods = [
             { label: 'Exact', cls: 'exact' },
             { label: 'Alias', cls: 'alias' },
             { label: 'Fuzzy', cls: 'fuzzy' },
             { label: 'Vector', cls: 'vector' },
+            { label: 'Custom', cls: 'custom' },
+            { label: 'Unmatched', cls: 'unmatched' },
         ];
 
-        methods.forEach(m => {
+        methods.filter(m => usedMethods.has(m.cls)).forEach(m => {
             const item = document.createElement('span');
             item.className = 'legend-item';
 

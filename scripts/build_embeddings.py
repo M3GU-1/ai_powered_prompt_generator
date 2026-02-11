@@ -107,14 +107,15 @@ def _is_english_alias(alias: str) -> bool:
 
 def build_embedding_text(tag: dict) -> str:
     """Create text representation for embedding a tag.
-    Only includes English aliases to avoid multilingual noise in the embedding."""
-    name = tag["tag"].replace("_", " ")
-    if tag["aliases"]:
-        english_aliases = [a.replace("_", " ") for a in tag["aliases"] if _is_english_alias(a)]
-        if english_aliases:
-            alias_str = ", ".join(english_aliases[:5])
-            return f"{name}, {alias_str}"
-    return name
+
+    Uses only the tag name (underscores → spaces) to keep the embedding
+    tightly focused on the core meaning.  Including aliases (especially
+    shorthand like '/s' or non-English ones like 'seifuku') was found to
+    dilute the vector and hurt retrieval of common tags such as
+    school_uniform and cat_ears.  Alias matching is already handled by
+    Stage 2 of the tag-matching pipeline, so it is not needed here.
+    """
+    return tag["tag"].replace("_", " ")
 
 
 def save_tags_json(tags: list[dict], path: Path):
